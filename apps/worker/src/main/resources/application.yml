@@ -1,0 +1,37 @@
+spring:
+  application:
+    name: pubfleet-worker
+
+  main:
+    # No HTTP server. The worker is driven by the poll loop only.
+    web-application-type: none
+
+  datasource:
+    url: ${PUBFLEET_DB_URL:jdbc:postgresql://localhost:5432/pubfleet}
+    username: ${PUBFLEET_DB_USER:pubfleet}
+    password: ${PUBFLEET_DB_PASSWORD:pubfleet}
+
+  # The control plane owns the schema. The worker runs no migration.
+  flyway:
+    enabled: false
+
+  kafka:
+    bootstrap-servers: ${PUBFLEET_KAFKA_BOOTSTRAP:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      properties:
+        # The control plane reads a fixed contract type. No type header is needed.
+        spring.json.add.type.headers: false
+
+pubfleet:
+  worker:
+    id: ${PUBFLEET_WORKER_ID:worker-1}
+    batch-size: ${PUBFLEET_WORKER_BATCH_SIZE:5}
+    poll-delay: ${PUBFLEET_WORKER_POLL_DELAY:500ms}
+    work-delay: ${PUBFLEET_WORKER_WORK_DELAY:200ms}
+
+logging:
+  level:
+    dev.pubfleet: INFO

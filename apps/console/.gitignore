@@ -1,0 +1,15 @@
+node_modules
+dist
+coverage
+*.local
+.vite
+
+# The root .gitignore drops every .env.* file. This one holds no secret: it only
+# points the dev build at the Vite proxy. A cold clone needs it to start without
+# CORS configuration, so keep it tracked.
+!.env.development
+
+# Playwright output. The spec is tracked; its reports and traces are not.
+playwright-report
+test-results
+.playwright

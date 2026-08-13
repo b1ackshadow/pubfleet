@@ -50,12 +50,43 @@ owns the claim only.
 
 | Failure mode | Test file | What it proves |
 |---|---|---|
-| Any hop breaks | `JobLifecycleIT` | pending |
-| Console misses a state change | `job-lifecycle.spec.ts` | pending |
+| Any hop breaks | `JobLifecycleIT` test 1 | Submit, claim, publish, consume, terminal state, on real Postgres and real Kafka. The consumer topic was pointed at a wrong name and both methods failed, then reverted. |
+| A terminal job is overwritten | `JobLifecycleIT` test 2 | A completion event for an already-terminal job changes nothing. A second job on the same partition fences the assertion, so the illegal event is proven to have been consumed and rejected. |
+| Console misses a state change | `job-lifecycle.spec.ts` | The rendered status walks forward to `SUCCEEDED`. Passed 10 runs out of 10 against the live stack. |
+
+The integration test copies the two SQL statements of the worker rather than depending on
+the worker module, because that would put two deployables on one classpath. The test reads
+`JobClaimRepository.java` and fails if the copy has drifted.
 
 ## Build summary
 
-Not built.
+**Console** — `apps/console/`. React 19, Vite, MUI v6, TanStack Query v5, one route.
+`JobStatus` is a closed literal union with a type guard. The status colour map is an
+exhaustive `Record<JobStatus, ...>`, so a new status breaks the build. Polling stops
+when the tab is hidden, through `useSyncExternalStore` on `visibilitychange`.
+11 tests in 3 files. `npm run build`, `lint`, and `test` all pass.
+
+**Backend** — Maven reactor, Spring Boot 3.5.16, `release=25`, failsafe wired for `*IT`.
+
+- `libs/contracts` — status enum, request and response records, `JobCompletedEvent`. Jackson annotations only, no Spring class.
+- `apps/control-plane` — controller on the frozen API, `JobStateMachine` as the single transition guard, RFC 9457 error handler, keyset queries on `(created_at, id)` descending, Kafka consumer, Flyway `V1__jobs.sql`, virtual threads on.
+- `apps/worker` — plain JDBC, not JPA, so the claim is literally the mandated statement. Fixed-delay poller, trivial runner, Kafka producer. No web server.
+- `docker-compose.yml` — Postgres 17 and Kafka in KRaft mode, both with healthchecks. No app containers.
+
+27 tests pass on `./mvnw clean verify`. Both ArchUnit rules were verified to fail when
+deliberately broken, then reverted. The full stack was booted and the whole path walked:
+submit, claim, publish, consume, terminal state. Keyset paging walked 6 jobs with no gaps
+and no repeats.
+
+**Toolchain and CI** — `flake.nix` gives a dev shell with JDK 25, Maven, Node 24, and
+the Playwright browsers, pinned to `nixos-26.05`. `nix develop` is the one command that
+makes a cold clone build. CI runs three jobs: the Maven build with its Testcontainers
+tests, the console lint, build, and unit tests, and a secret scan that fails the build on
+a finding. Playwright is not in CI. It needs the live stack and runs locally for now.
+
+**Port** — the control plane listens on 8081 by default, through
+`PUBFLEET_CONTROL_PLANE_PORT`. Port 8080 is held by an unrelated service on this machine.
+The Vite proxy targets 8081.
 
 ## Open risks
 

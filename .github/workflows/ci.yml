@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: backend (JDK 25, Maven verify)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      # Runs unit tests and the *IT Testcontainers integration tests.
+      # ubuntu-latest ships Docker, so Testcontainers can start its own
+      # Postgres/Kafka — no service containers needed here.
+      - name: mvnw clean verify
+        run: ./mvnw -B clean verify
+
+  console:
+    name: console (Node 24, lint/build/test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/console
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: apps/console/package-lock.json
+
+      - name: npm ci
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm run test
+
+  secrets:
+    name: secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+        with:
+          # Full history so gitleaks can diff base...head on pull_request events.
+          fetch-depth: 0
+
+      - name: Gitleaks scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # gitleaks-action fails the step (non-zero exit) on any finding by default.
+
+  # playwright:
+  #   Not wired into CI yet. The e2e suite needs the full live stack
+  #   (control-plane, worker, Postgres, Kafka via docker-compose) and is
+  #   run locally for now — see the `devShell` in flake.nix, which exports
+  #   PLAYWRIGHT_BROWSERS_PATH for that purpose.

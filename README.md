@@ -41,10 +41,34 @@ Kubernetes unit.
 
 ## Run it
 
+The dev shell supplies JDK 25, Maven, Node, and the Playwright browsers.
+
 ```
+nix develop
 docker compose up -d
+./mvnw install -DskipTests
+```
+
+The install step is necessary once. The two applications depend on the `contracts`
+module, and Maven cannot resolve it until it is in the local repository.
+
+Then start the three processes, each in its own shell:
+
+```
 ./mvnw spring-boot:run -pl apps/control-plane
-npm --prefix apps/console run dev
+./mvnw spring-boot:run -pl apps/worker
+npm --prefix apps/console ci && npm --prefix apps/console run dev
+```
+
+The console is on port 5173. The control plane is on port 8081. To change the port,
+set `PUBFLEET_CONTROL_PLANE_PORT`.
+
+## Test it
+
+```
+./mvnw clean verify                        # unit tests and Testcontainers tests
+npm --prefix apps/console run test          # console unit tests
+npm --prefix apps/console run test:e2e      # Playwright, needs the stack running
 ```
 
 ## License

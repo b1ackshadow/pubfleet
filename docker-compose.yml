@@ -1,0 +1,71 @@
+# Backing services for pubfleet. No application containers: the apps run from Maven.
+#
+#   docker compose up -d
+#   ./mvnw -pl apps/control-plane spring-boot:run
+#   ./mvnw -pl apps/worker spring-boot:run
+#
+# Copy .env.example to .env first, or accept the defaults below.
+
+name: pubfleet
+
+services:
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: pubfleet-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-pubfleet}
+      POSTGRES_USER: ${POSTGRES_USER:-pubfleet}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pubfleet}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      # -U and -d are given because pg_isready otherwise asks for the OS user.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pubfleet} -d ${POSTGRES_DB:-pubfleet}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  kafka:
+    # KRaft mode. One node is both broker and controller, so there is no ZooKeeper.
+    image: apache/kafka:3.9.0
+    container_name: pubfleet-kafka
+    ports:
+      - "${KAFKA_PORT:-9092}:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      # The apps run on the host, not in this network, so the broker must advertise a
+      # name the host can reach. Do not write 0.0.0.0 here: the broker refuses to
+      # advertise a meta-address.
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      # A single node cannot replicate. Every one of these must be 1 or the broker
+      # blocks on creating its internal topics.
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID:-pubfleet-local-cluster}
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      # The broker answers an API request only after it is fully up. A port check
+      # would pass too early and the apps would fail their first connection.
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
+
+volumes:
+  postgres-data:
+  kafka-data:
