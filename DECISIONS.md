@@ -12,7 +12,7 @@ named in every ADR. A record without a rejected option is not finished.
 
 | ID | Title | Unit | Date | Status |
 |---|---|---|---|---|
-| — | none yet | — | — | — |
+| ADR-001 | Walking skeleton: two deployables, Postgres owns work, Kafka carries results | 00 | 2026-08-13 | accepted |
 
 ---
 

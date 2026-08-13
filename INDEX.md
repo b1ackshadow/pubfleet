@@ -13,7 +13,7 @@ coach stance. T3 = design and grill only, no production code.
 
 | # | Unit | Tier | Status | Core concepts | Depends on |
 |---|---|---|---|---|---|
-| 00 | walking-skeleton | T2 | todo | trigger to worker to console; Postgres, Kafka, React shell | — |
+| 00 | walking-skeleton | T2 | build | trigger to worker to console; Postgres, Kafka, React shell | — |
 | 01 | worker-lease | T1 | todo | `SELECT FOR UPDATE` against `@Version` against a Redis lease; isolation levels; race proof | 00 |
 | 02 | scheduler | T1 | todo | database polling against a time wheel against Quartz; misfire; catch-up; DST | 01 |
 | 03 | saga-outbox | T1 | todo | compensation order; outbox and inbox; effectively-once; idempotency keys | 01, 02 |
@@ -44,9 +44,11 @@ coach stance. T3 = design and grill only, no production code.
 
 A port is a reusable interface. Later units consume ports. They do not consume internals.
 
+A `libs/` module is created when a unit publishes a port. Never before.
+
 | Port | Owner unit | State |
 |---|---|---|
-| — | — | none yet |
+| `libs/contracts` — job DTOs, status enum, `job.completed` event | 00 | building |
 
 ---
 
