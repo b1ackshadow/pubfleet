@@ -51,7 +51,14 @@ public class JobPoller {
 
         for (UUID id : candidates) {
             if (claims.claim(id, properties.id())) {
-                process(id);
+                try {
+                    process(id);
+                } catch (RuntimeException unreported) {
+                    // The report itself failed. The job stays CLAIMED and no wrong
+                    // outcome goes out. One broken report must not skip the rest of
+                    // the batch.
+                    log.error("Could not report the outcome of job {}", id, unreported);
+                }
             } else {
                 // Another worker won the row, or it is no longer PENDING. Both are fine.
                 log.debug("Lost the claim on job {}", id);
@@ -59,19 +66,46 @@ public class JobPoller {
         }
     }
 
+    /**
+     * Runs one claimed job and reports it once.
+     *
+     * <p>The try block computes the outcome and nothing else. {@link #report} sits
+     * after it on purpose: inside, a publish that threw would be caught as job failure,
+     * so work that had already succeeded would be reported FAILED with a broker error
+     * as its result.
+     */
     private void process(UUID id) {
         log.info("Claimed job {}", id);
+
+        JobStatus status;
+        String result;
         try {
-            String result = runner.run(claims.findPayloadRef(id));
-            report(id, JobStatus.SUCCEEDED, result);
+            result = runner.run(claims.findPayloadRef(id));
+            status = JobStatus.SUCCEEDED;
         } catch (InterruptedException stopped) {
             Thread.currentThread().interrupt();
             log.warn("Interrupted while working on job {}", id);
-            report(id, JobStatus.FAILED, "worker was interrupted");
+            status = JobStatus.FAILED;
+            result = "worker was interrupted";
         } catch (RuntimeException failure) {
             log.warn("Job {} failed", id, failure);
-            report(id, JobStatus.FAILED, String.valueOf(failure.getMessage()));
+            status = JobStatus.FAILED;
+            result = describe(failure);
         }
+
+        report(id, status, result);
+    }
+
+    /**
+     * A result string for a failure. An exception with no message must not store the
+     * literal text {@code "null"} in the job row, so the class name is used instead.
+     */
+    private static String describe(RuntimeException failure) {
+        String message = failure.getMessage();
+
+        return (message == null || message.isBlank())
+                ? failure.getClass().getName() + " with no message"
+                : message;
     }
 
     /**

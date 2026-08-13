@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { JobsPage } from './JobsPage'
+import { JOB_POLL_INTERVAL_MS, jobKeys } from '../api/queries'
 import { jsonResponse } from '../test/harness'
 
 const fetchMock = vi.fn<typeof fetch>()
@@ -27,11 +28,14 @@ function renderPage() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   })
-  return render(
-    <QueryClientProvider client={client}>
-      <JobsPage />
-    </QueryClientProvider>,
-  )
+  return {
+    client,
+    ...render(
+      <QueryClientProvider client={client}>
+        <JobsPage />
+      </QueryClientProvider>,
+    ),
+  }
 }
 
 describe('JobsPage', () => {
@@ -101,5 +105,29 @@ describe('JobsPage', () => {
 
     await vi.advanceTimersByTimeAsync(5000)
     expect(fetchMock.mock.calls.length).toBe(atHide)
+  })
+
+  /**
+   * The test above asserts a behaviour TanStack Query owns. It cannot fail while the
+   * option that buys that behaviour is missing, because the library's own default is
+   * the same as the value we pass: query-core skips a scheduled refetch unless
+   * `refetchIntervalInBackground` is truthy or the tab is focused. Dropping the option
+   * from `useJobsQuery` therefore changes nothing that a rendered page can show.
+   *
+   * That is exactly why the option must be asserted on its own. This reads the resolved
+   * options of the live observer, so it fails the moment `queries.ts` stops stating the
+   * choice, and it keeps failing if someone later sets it to `true`.
+   */
+  it('states refetchIntervalInBackground: false on the jobs query', async () => {
+    const { client } = renderPage()
+
+    await screen.findByTestId('submit-form')
+
+    const query = client.getQueryCache().find({ queryKey: jobKeys.list(50) })
+    expect(query, 'the jobs query must be in the cache').toBeDefined()
+
+    const options = query?.observers[0]?.options
+    expect(options?.refetchInterval).toBe(JOB_POLL_INTERVAL_MS)
+    expect(options?.refetchIntervalInBackground).toBe(false)
   })
 })

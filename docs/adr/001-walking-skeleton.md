@@ -67,8 +67,9 @@ the claim. Do not fix it here.
 
 | Failure mode | Test | Result |
 |---|---|---|
-| Any hop in the chain breaks | `JobLifecycleIT` on Testcontainers | pending |
-| The console does not reflect a state change | one Playwright test | pending |
+| Any hop in the chain breaks | `JobLifecycleIT` test 1, on Testcontainers | passes; proven to fail when the consumer topic is wrong |
+| A terminal job is overwritten | `JobLifecycleIT` test 2 | passes; fenced by a second job on the same partition |
+| The console does not reflect a state change | `job-lifecycle.spec.ts` | passes, 10 runs of 10, against the live stack |
 
 ## The push-back
 

@@ -8,6 +8,12 @@ spring:
     virtual:
       enabled: true
 
+  mvc:
+    problemdetails:
+      # Errors Spring raises before a controller runs must leave as RFC 9457 too, not
+      # as Boot's timestamp/status/error/path body. The console reads one shape only.
+      enabled: true
+
   datasource:
     url: ${PUBFLEET_DB_URL:jdbc:postgresql://localhost:5432/pubfleet}
     username: ${PUBFLEET_DB_USER:pubfleet}

@@ -6,6 +6,7 @@ import dev.pubfleet.contracts.JobCompletedEvent;
 import dev.pubfleet.contracts.JobPage;
 import dev.pubfleet.contracts.JobStatus;
 import dev.pubfleet.contracts.JobView;
+import dev.pubfleet.controlplane.domain.InvalidJobRequestException;
 import dev.pubfleet.controlplane.domain.JobNotFoundException;
 import dev.pubfleet.controlplane.domain.JobStateMachine;
 import dev.pubfleet.controlplane.persistence.JobEntity;
@@ -116,7 +117,7 @@ public class JobService {
 
     private static void requireText(String value, String field) {
         if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException(field + " must not be blank");
+            throw new InvalidJobRequestException(field, field + " must not be blank");
         }
     }
 

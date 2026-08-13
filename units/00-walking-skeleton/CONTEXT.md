@@ -62,9 +62,11 @@ the worker module, because that would put two deployables on one classpath. The 
 
 **Console** — `apps/console/`. React 19, Vite, MUI v6, TanStack Query v5, one route.
 `JobStatus` is a closed literal union with a type guard. The status colour map is an
-exhaustive `Record<JobStatus, ...>`, so a new status breaks the build. Polling stops
-when the tab is hidden, through `useSyncExternalStore` on `visibilitychange`.
-11 tests in 3 files. `npm run build`, `lint`, and `test` all pass.
+exhaustive `Record<JobStatus, ...>`, so a new status breaks the build. Polling stops when
+the tab is hidden, through TanStack Query's `refetchIntervalInBackground: false`. A
+hand-written `usePageVisible` hook did the same job at first. The review proved the
+library already gated the poll on `focusManager.isFocused()`, so the hook was deleted.
+12 tests in 3 files. `npm run build`, `lint`, and `test` all pass.
 
 **Backend** — Maven reactor, Spring Boot 3.5.16, `release=25`, failsafe wired for `*IT`.
 
@@ -97,3 +99,17 @@ that dies after claiming strands the job. This is unit 01's brief. Do not fix it
 **The publish is not atomic with the write.** The control plane writes the row and then
 publishes. A crash between the two loses the event. This is unit 03's outbox. Do not fix
 it here.
+
+**A completing worker is not checked against the claim holder.** Any worker id can
+complete a `CLAIMED` job and rewrite the attribution. The integration test proves the
+terminal guard, not ownership. This is unit 01's fencing. Do not fix it here.
+
+## Deferred from the unit 00 review
+
+Real findings, recorded rather than fixed, with the unit that will close each one.
+
+| Finding | Why deferred | Closes in |
+|---|---|---|
+| `GET /api/jobs` keyset paging has no test. The row-comparison query and the unknown-cursor behavior are asserted only in a comment. | Paging carries no weight until the catalog is large. The manual walk of 6 jobs was a check, not a guard. | 09 |
+| A production console build points at an absolute `http://localhost:8081`, and the control plane sets no CORS policy. `npm run preview` therefore renders a console whose calls are all blocked. | Only the dev flow is used today. The console is rebuilt properly in unit 11. | 11 |
+| The Playwright spec accepts `PENDING` or `CLAIMED` as the first rendered status, so a console that stopped polling could still pass. | Strict `PENDING` flakes 2 runs in 13. The poll interval is a unit 11 concern. | 11 |
